@@ -75,6 +75,7 @@ class Dz(nn.Module):
     ) -> None:
         super(Dz, self).__init__()
         self.sample_size = sample_size
+        self.prior = np.random.uniform(low=0, high=1, size=self.sample_size)
         self.fc1 = nn.Linear(self.sample_size, 64)
         self.fc2 = nn.Linear(64, 32)
         self.fc3 = nn.Linear(32, 16)
@@ -90,12 +91,13 @@ class Dz(nn.Module):
 
 class Dimg(nn.Module):
 
-    def __init__(self, channels: int):
+    def __init__(self, channels: int, labels: int):
         #TODO think about how to add labels ('n' in the article)
         super(Dimg, self).__init__()
-        self.channels = 16
-        self.conv1 =
-        self.conv2 = nn.Conv2d(n+self.channels, 2*self.channels, kernel_size=3, stride=2, padding=2)
+        self.channels = channels
+        self.labels = labels
+        self.conv1 = nn.Conv2d()
+        self.conv2 = nn.Conv2d(self.labels+self.channels, 2*self.channels, kernel_size=3, stride=2, padding=2)
         self.conv3 = nn.Conv2d(2*self.channels, 4*self.channels, kernel_size=3, stride=2, padding=2)
         self.conv4 = nn.Conv2d(4*self.channels, 8*self.channels, kernel_size=3, stride=2, padding=2)
         self.fc1 = nn.Linear(8*8*8*self.channels, 1024)
