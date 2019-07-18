@@ -16,8 +16,9 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 DESTINATION_DIR = 'data'
 image_size = 128
-batch_size = 32
+batch_size = 1
 ngpu = 0
+num_epochs = 10
 
 dataset = dset.ImageFolder(root=DESTINATION_DIR,
                            transform=transforms.Compose([
@@ -33,11 +34,13 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle
 device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
 
 real_batch = next(iter(dataloader))
-plt.figure(figsize=(8, 8))
-plt.axis('off')
-plt.title("Example images")
-plt.imshow(np.transpose(vutils.make_grid(real_batch[0].to(device)[:64], padding=2, normalize=True).cpu(), (1, 2, 0)))
-plt.show()
+
+
+# plt.figure(figsize=(8, 8))
+# plt.axis('off')
+# plt.title("Example images")
+# plt.imshow(np.transpose(vutils.make_grid(real_batch[0].to(device)[:64], padding=2, normalize=True).cpu(), (1, 2, 0)))
+# plt.show()
 
 
 # custom weights initialization called on netG and netD
@@ -70,3 +73,20 @@ netDz = Dz().to(device)
 # Apply the weights_init function to randomly initialize all weights
 #  to mean=0, stdev=0.2.
 netDz.apply(weights_init)
+
+# Loss for Encoder-Generator training
+
+L2loss = nn.MSELoss()
+EGoptim = torch.optim.Adam(netG.parameters(), betas=(0.5, 0.5), lr=2e-4)
+
+for index, data in enumerate(dataloader):
+    image, _ = data
+    image = torch.autograd.Variable(image).cpu()
+    output = netG(netE(image))
+    loss = L2loss(output, image)
+    EGoptim.zero_grad()
+    loss.backward()
+    EGoptim.step()
+
+    if index % 50 == 0:
+        print(f"Loss for {index} batch is equal to {loss}")
