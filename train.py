@@ -1,11 +1,13 @@
+import os
+import re
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 import torch
 from torch import nn
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
+from aging.dataloader import ImageTargetFolder
 from aging.nets import Encoder, Generator, Dimg, Dz
 
 # Setting environmental variable to resolve error:
@@ -16,11 +18,11 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 DESTINATION_DIR = 'data'
 image_size = 128
-batch_size = 1
+batch_size = 32
 ngpu = 0
 num_epochs = 10
 
-dataset = dset.ImageFolder(root=DESTINATION_DIR,
+dataset = ImageTargetFolder(root=DESTINATION_DIR,
                            transform=transforms.Compose([
                                transforms.Resize(image_size),
                                transforms.CenterCrop(image_size),
@@ -28,7 +30,11 @@ dataset = dset.ImageFolder(root=DESTINATION_DIR,
                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                            ]))
 
-dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+regex = '^.*?([0-9].*?)_([0-9])_.*$'
+labels = [int(re.findall(regex, x[0])[0][0]) for x in dataset.imgs]
+dataset.targets = labels
+
+dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
 # Decide which device we want to run on
 device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
@@ -79,10 +85,16 @@ netDz.apply(weights_init)
 L2loss = nn.MSELoss()
 EGoptim = torch.optim.Adam(netG.parameters(), betas=(0.5, 0.5), lr=2e-4)
 
+#TODO - inspect problem with dataloader.sample - different label order
+
 for index, data in enumerate(dataloader):
-    image, _ = data
+    image, label = data
     image = torch.autograd.Variable(image).cpu()
-    output = netG(netE(image))
+    codes = netE(image)
+
+    sample = torch.rand(codes.shape)
+    z = torch.cat((sample, label[:, np.newaxis, np.newaxis].float()), dim=2)
+    output = netG(z)
     loss = L2loss(output, image)
     EGoptim.zero_grad()
     loss.backward()

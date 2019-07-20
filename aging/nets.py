@@ -41,7 +41,7 @@ class Generator(nn.Module):
     ) -> None:
         super(Generator, self).__init__()
         self.max_channels = max_channels
-        self.fc = nn.Linear(50, 8*8*self.max_channels)
+        self.fc = nn.Linear(51, 8*8*self.max_channels)
         self.conv1t = nn.ConvTranspose2d(in_channels=self.max_channels, out_channels=self.max_channels // 2,
                                          kernel_size=4, stride=2, padding=1)
         self.conv2t = nn.ConvTranspose2d(in_channels=self.max_channels // 2, out_channels=self.max_channels // 4,
