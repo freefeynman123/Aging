@@ -14,14 +14,21 @@ def convert_age(age: int, interval: List[int] = list(range(10, 130, 10))):
         if age <= value:
             return index
 
-def index_to_one_hot(index: int, N: int):
+def index_to_one_hot(label: int, N: int):
     """
-    Convets index to one hot encoded tensor.
-    :param index: Index to encoded.
+    Converts index to one hot encoded tensor.
+    :param label: Index to encoded.
     :param N: Number of classes.
     :return: Tensor with one hot encoded index.
     """
 
-    zeros = torch.zeros(index.size(0), N)
-    one_hot = zeros.scatter_(1, index)
+    assert torch.max(label).item() < N
+
+    zeros = torch.zeros(label.size(0), N)
+    try:
+        one_hot = zeros.scatter_(1, label, 1)
+    except RuntimeError:
+        print("Your label tensor is probably one dimensional, trying to reshape it.")
+        label = label.view(-1, 1)
+        one_hot = zeros.scatter_(1, label, 1)
     return one_hot

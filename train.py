@@ -9,6 +9,7 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from aging.dataloader import ImageTargetFolder
 from aging.nets import Encoder, Generator, Dimg, Dz
+from aging.utils import convert_age, index_to_one_hot
 
 # Setting environmental variable to resolve error:
 # OMP: Error #15: Initializing libiomp5.dylib, but found libomp.dylib already initialized.
@@ -21,6 +22,11 @@ image_size = 128
 batch_size = 32
 ngpu = 0
 num_epochs = 10
+num_classes = 11
+lr = 2e-4
+betas = (0.5, 0.5)
+SEED = 42
+torch.manual_seed(SEED)
 
 dataset = ImageTargetFolder(root=DESTINATION_DIR,
                            transform=transforms.Compose([
@@ -60,45 +66,69 @@ def weights_init(m):
 
 
 # Initialize neural networks
-netG = Generator().to(device)
-
-# Apply the weights_init function to randomly initialize all weights
-#  to mean=0, stdev=0.2.
-netG.apply(weights_init)
-
-# Initialize neural networks
 netE = Encoder().to(device)
+netG = Generator().to(device)
+netDz = Dz().to(device)
+netDimg = Dimg().to(device)
 
 # Apply the weights_init function to randomly initialize all weights
 #  to mean=0, stdev=0.2.
 netE.apply(weights_init)
-
-# Initialize neural networks
-netDz = Dz().to(device)
-
-# Apply the weights_init function to randomly initialize all weights
-#  to mean=0, stdev=0.2.
+netG.apply(weights_init)
 netDz.apply(weights_init)
+netDimg.apply(weights_init)
 
 # Loss for Encoder-Generator training
 
 L2loss = nn.MSELoss()
-EGoptim = torch.optim.Adam(netG.parameters(), betas=(0.5, 0.5), lr=2e-4)
+CEloss = nn.CrossEntropyLoss()
+optimizerE = torch.optim.Adam(netE.parameters(), betas=betas, lr=lr)
+optimizerG = torch.optim.Adam(netG.parameters(), betas=betas, lr=lr)
+optimizerDz = torch.optim.Adam(netDz.parameters(), betas=betas, lr=lr)
+optimizerDimg = torch.optim.Adam(netDimg.parameters(), betas=betas, lr=lr)
 
-#TODO - inspect problem with dataloader.sample - different label order
 
 for index, data in enumerate(dataloader):
+    #Extracting data and converting labels to one hot encoded format
     image, label = data
+    label = torch.tensor([convert_age(age) for age in label])
+    label = index_to_one_hot(label, num_classes)
     image = torch.autograd.Variable(image).cpu()
-    codes = netE(image)
+    #Training encoder (using procedure for conditional variational autoencoder)
+    z = netE(image)
+    #Training Dz - keeping distribution of z close to uniform
+    #Training on sample part
+    netDz.zero_grad()
+    sample = torch.autograd.Variable(torch.rand(z.shape))
+    output_sample = netDz(sample)
+    #Training on generated codes part
+    output_z = netDz(z)
+    #Calculating loss
+    #TODO - think how to train Dz - probably give up cross entropy
+    lossDzE = CEloss(output_z.view(-1, 1), output_sample.view(-1, 1))
+    lossDzE.backward()
+    #Optimizing networks
+    optimizerE.step()
+    optimizerDz.step()
+    #Generator is going to be further optimized by Dimg
+    z_label = torch.cat((z, label[:, np.newaxis].float()), dim=2)
+    output = netG(z_label)
+    lossG = L2loss(output, image)
+    optimizerG.zero_grad()
+    lossG.backward()
+    optimizerG.step()
+    #Training Dimg
+    netDimg.zero_grad()
+    #Reshape label to match image's shape after first convolution
+    # label_reshaped =
+    # Training on generated codes part
+    output_z = netDz(z)
+    # Calculating loss
+    lossDzE = CEloss(output_sample, output_z)
+    lossDzE.backward()
 
-    sample = torch.rand(codes.shape)
-    z = torch.cat((sample, label[:, np.newaxis, np.newaxis].float()), dim=2)
-    output = netG(z)
-    loss = L2loss(output, image)
-    EGoptim.zero_grad()
-    loss.backward()
-    EGoptim.step()
+
+
 
     if index % 50 == 0:
         print(f"Loss for {index} batch is equal to {loss}")
