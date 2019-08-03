@@ -1,21 +1,30 @@
+from typing import Union
+
 import torch
 from torch import nn
 import numpy as np
 
+from aging.parameters import n_channels, n_age, n_discriminator, n_encode, n_gender, n_generator, n_l, n_z
+
+#TODO check kernel_size=5 and padding = 2
+
 class Encoder(nn.Module):
     def __init__(
             self,
-            channels: int = 64
+            n_channels: int = n_channels,
+            n_encode: int = n_encode,
+            n_z: int = n_z
     ) -> None:
         super(Encoder, self).__init__()
-        self.channels = channels
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=self.channels, kernel_size=5, stride=2, padding=2)
-        self.conv2 = nn.Conv2d(in_channels=self.channels, out_channels=2*self.channels, kernel_size=5, stride=2, padding=2)
-        self.conv3 = nn.Conv2d(in_channels=2*self.channels, out_channels=4*self.channels, kernel_size=5, stride=2, padding=2)
-        self.conv4 = nn.Conv2d(in_channels=4*self.channels, out_channels=8*self.channels, kernel_size=5, stride=2, padding=2)
+        self.n_channel = n_channels
+        self.n_encode = n_encode
+        self.n_z = n_z
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=self.n_encode, kernel_size=5, stride=2, padding=2)
+        self.conv2 = nn.Conv2d(in_channels=self.n_encode, out_channels=2 * self.n_encode, kernel_size=5, stride=2, padding=2)
+        self.conv3 = nn.Conv2d(in_channels=2*self.n_encode, out_channels=4 * self.n_encode, kernel_size=5, stride=2, padding=2)
+        self.conv4 = nn.Conv2d(in_channels=4*self.n_encode, out_channels=8 * self.n_encode, kernel_size=5, stride=2, padding=2)
         self.relu = nn.ReLU(inplace=False)
-        self.fc = nn.Linear(512*self.channels, 50)
-        self.tanh = nn.Tanh()
+        self.fc = nn.Linear(512 * self.n_encode, self.n_z)
 
     def forward(
             self,
@@ -30,46 +39,59 @@ class Encoder(nn.Module):
         x = self.relu(self.conv2(x))
         x = self.relu(self.conv3(x))
         x = self.relu(self.conv4(x))
-        x = x.view(x.size(0), 1, -1)
+        x = x.view(-1, 8 * 8 * 8 * self.n_encode)
         x = self.fc(x)
-        x = self.tanh(x)
         return x
 
 class Generator(nn.Module):
 
     def __init__(
             self,
-            max_channels: int = 1024
+            n_l: int = n_l,
+            n_z: int = n_z,
+            n_age: int = n_age,
+            n_gender: int = n_gender,
+            n_generator: int = n_generator
     ) -> None:
         super(Generator, self).__init__()
-        self.max_channels = max_channels
-        self.fc = nn.Linear(61, 8*8*self.max_channels)
-        self.conv1t = nn.ConvTranspose2d(in_channels=self.max_channels, out_channels=self.max_channels // 2,
+        self.n_generator = n_generator
+        self.n_l = n_l
+        self.n_z = n_z
+        self.n_age = n_age
+        self.n_gender = n_gender
+        self.fc = nn.Linear(self.n_z + self.n_l*self.n_age + self.n_gender, 8 * 8 * 16 *self.n_generator)
+        self.conv1t = nn.ConvTranspose2d(in_channels=16 * self.n_generator, out_channels=8 * self.n_generator,
                                          kernel_size=4, stride=2, padding=1)
-        self.conv2t = nn.ConvTranspose2d(in_channels=self.max_channels // 2, out_channels=self.max_channels // 4,
+        self.conv2t = nn.ConvTranspose2d(in_channels=8 * self.n_generator, out_channels=4 *self.n_generator,
                                          kernel_size=4, stride=2, padding=1)
-        self.conv3t = nn.ConvTranspose2d(in_channels=self.max_channels // 4, out_channels= self.max_channels // 8,
+        self.conv3t = nn.ConvTranspose2d(in_channels=4 * self.n_generator, out_channels=2 * self.n_generator,
                                          kernel_size=4, stride=2, padding=1)
-        self.conv4t = nn.ConvTranspose2d(in_channels=self.max_channels // 8, out_channels= self.max_channels // 16,
+        self.conv4t = nn.ConvTranspose2d(in_channels=2 * self.n_generator, out_channels=self.n_generator,
                                          kernel_size=4, stride=2, padding=1)
-        self.conv1 = nn.Conv2d(in_channels=self.max_channels // 16, out_channels=3, kernel_size=1)
+        self.conv5t = nn.ConvTranspose2d(in_channels=self.n_generator, out_channels=3, kernel_size=3, stride=1, padding=1)
+        self.relu = nn.ReLU(inplace=False)
+        self.tanh = nn.Tanh()
 
     def forward(
             self,
-            x: np.ndarray
+            x: np.ndarray,
+            age: Union[np.ndarray, torch.Tensor],
+            gender: Union[np.ndarray, torch.Tensor]
     ) -> np.ndarray:
         """
         Forward pass through decoder
         :param x: Encoded image.
         :return: Decoded image.
         """
-        x = self.fc(x)
-        x = x.view(x.size(0), self.max_channels, 8, 8)
-        x = self.conv1t(x)
-        x = self.conv2t(x)
-        x = self.conv3t(x)
-        x = self.conv4t(x)
-        x = self.conv1(x)
+        age = age.repeat(1, self.n_age).float()
+        gender = gender.view(-1, 1).repeat(1, self.n_gender).float()
+        x = torch.cat([x, age, gender], dim=1)
+        x = self.fc(x).view(-1, 16 * self.n_generator, 8, 8)
+        x = self.relu(self.conv1t(x))
+        x = self.relu(self.conv2t(x))
+        x = self.relu(self.conv3t(x))
+        x = self.relu(self.conv4t(x))
+        x = self.tanh(self.conv5t(x))
         return x
 
 class Dz(nn.Module):
@@ -80,22 +102,24 @@ class Dz(nn.Module):
     """
     def __init__(
             self,
-            sample_size: int = 50
+            sample_size: int = n_z,
+            n_discriminator: int = n_discriminator
     ) -> None:
         super(Dz, self).__init__()
         self.sample_size = sample_size
-        self.fc1 = nn.Linear(self.sample_size, 64)
-        self.fc2 = nn.Linear(64, 32)
-        self.fc3 = nn.Linear(32, 16)
-        self.fc4 = nn.Linear(16, 1)
+        self.n_disciminator = n_discriminator
+        self.fc1 = nn.Linear(self.sample_size, 4 * self.n_disciminator)
+        self.fc2 = nn.Linear(4 * self.n_disciminator, 2 * self.n_disciminator)
+        self.fc3 = nn.Linear(2 * self.n_disciminator, self.n_disciminator)
+        self.fc4 = nn.Linear(self.n_disciminator, 1)
+        self.relu = nn.ReLU(inplace=False)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, z):
-        z = self.fc1(z)
-        z = self.fc2(z)
-        z = self.fc3(z)
-        z = self.fc4(z)
-        z = self.sigmoid(z)
+        z = self.relu(self.fc1(z))
+        z = self.relu(self.fc2(z))
+        z = self.relu(self.fc3(z))
+        z = self.sigmoid(self.fc4(z))
         return z
 
 class Dimg(nn.Module):
@@ -103,30 +127,48 @@ class Dimg(nn.Module):
     Disciminator on images - used to distinguish between generated faces and real ones.
     """
 
-    def __init__(self, labels: int = 12, channels: int = 16):
+    def __init__(
+            self,
+            labels: int = n_l,
+            channels: int = n_discriminator,
+            n_age: int = n_age,
+            n_gender: int = n_gender
+    ) -> None:
         super(Dimg, self).__init__()
         self.channels = channels
         self.labels = labels
-        self.conv1 = nn.Conv2d(3, self.channels, kernel_size=5, stride=2, padding=2)
+        self.n_age = n_age
+        self.n_gender = n_gender
+        self.conv1 = nn.Conv2d(3, self.channels, kernel_size=4, stride=2, padding=1)
         self.batch1 = nn.BatchNorm2d(self.channels)
-        self.conv2 = nn.Conv2d(self.labels + self.channels, 2*self.channels, kernel_size=5, stride=2, padding=2)
+        self.conv1t = nn.ConvTranspose2d(self.labels*self.n_age + self.n_gender, self.labels*self.n_age + self.n_gender,
+                                         kernel_size=64, stride=1, padding=0)
+        self.conv2 = nn.ConvTranspose2d(self.labels*self.n_age + self.n_gender + self.channels, 2*self.channels,
+                                        kernel_size=4, stride=2, padding=1)
         self.batch2 = nn.BatchNorm2d(2*self.channels)
-        self.conv3 = nn.Conv2d(2*self.channels, 4*self.channels, kernel_size=5, stride=2, padding=2)
+        self.conv3 = nn.Conv2d(2*self.channels, 4*self.channels, kernel_size=4, stride=2, padding=1)
         self.batch3 = nn.BatchNorm2d(4*self.channels)
-        self.conv4 = nn.Conv2d(4*self.channels, 8*self.channels, kernel_size=5, stride=2, padding=2)
+        self.conv4 = nn.Conv2d(4*self.channels, 8*self.channels, kernel_size=4, stride=2, padding=1)
         self.fc1 = nn.Linear(8*8*8*self.channels, 1024)
         self.fc2 = nn.Linear(1024, 1)
+        self.fc3 = nn.Linear(1024, self.labels)
         self.relu = nn.ReLU(inplace=False)
         self.sigmoid = nn.Sigmoid()
+        self.softmax = nn.Softmax()
 
-    def forward(self, x, y):
+    def forward(self, x, age, gender):
+        age = age.repeat(1, self.n_age, 1, 1)
+        gender = gender.repeat(1, self.n_gender, 1, 1)
         x = self.relu(self.batch1(self.conv1(x)))
-        x = torch.cat((x, y), dim=2)
+        labels = self.relu(self.conv1t(torch.cat([age, gender], dim=1)))
+        x = torch.cat([x, labels], dim=1)
         x = self.relu(self.batch2(self.conv2(x)))
         x = self.relu(self.batch3(self.conv3(x)))
-        x = self.relu(self.conv4(x))
-        x = self.sigmoid(x)
-        return x
+        x = self.relu(self.conv4(x)).view(-1, 8*8*8*self.channels)
+        x = self.relu(self.fc1(x))
+        x_1 = self.sigmoid(self.fc2(x))
+        x_2 = self.softmax(self.fc3(x))
+        return x_1, x_2
 
 
 

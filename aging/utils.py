@@ -1,9 +1,10 @@
+import numpy as np
 from typing import List
 import torch
 from torch import nn
 
 
-def convert_age(age: int, interval: List[int] = list(range(10, 130, 10))):
+def convert_age(age: int, interval: List[int] = list(np.linspace(10, 120, 10))):
     """
     Converts age to label based on given interval.
 

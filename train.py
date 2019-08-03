@@ -12,6 +12,7 @@ import torchvision.utils as vutils
 from aging.dataloader import ImageTargetFolder
 from aging.nets import Encoder, Generator, Dimg, Dz
 from aging.utils import convert_age, index_to_one_hot, total_variation_loss
+from aging.parameters import n_l, n_z, image_size, batch_size
 
 # Setting environmental variable to resolve error:
 # OMP: Error #15: Initializing libiomp5.dylib, but found libomp.dylib already initialized.
@@ -21,24 +22,21 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 DESTINATION_DIR = 'data'
 image_size = 128
-batch_size = 32
 ngpu = 0
 num_epochs = 10
-num_classes = 11
+num_classes = 10
 lr = 2e-4
 betas = (0.5, 0.999)
 SEED = 42
-nz = 50
-nl = 12
 torch.manual_seed(SEED)
 
 dataset = ImageTargetFolder(root=DESTINATION_DIR,
-                           transform=transforms.Compose([
-                               transforms.Resize(image_size),
-                               transforms.CenterCrop(image_size),
-                               transforms.ToTensor(),
-                               transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                           ]))
+                            transform=transforms.Compose([
+                                transforms.Resize(image_size),
+                                transforms.CenterCrop(image_size),
+                                transforms.ToTensor(),
+                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                            ]))
 
 regex = '^.*?([0-9].*?)_([0-9])_.*$'
 labels = [re.findall(regex, x[0])[0] for x in dataset.imgs]
@@ -83,47 +81,46 @@ netG.apply(weights_init)
 netDz.apply(weights_init)
 netDimg.apply(weights_init)
 
-#Definition of optimizers
-
+# Definition of optimizers
 optimizerE = torch.optim.Adam(netE.parameters(), betas=betas, lr=lr)
 optimizerG = torch.optim.Adam(netG.parameters(), betas=betas, lr=lr)
 optimizerDz = torch.optim.Adam(netDz.parameters(), betas=betas, lr=lr)
 optimizerDimg = torch.optim.Adam(netDimg.parameters(), betas=betas, lr=lr)
 
-#Definition of losses
+# Definition of losses
 BCEloss = nn.BCELoss
 L1loss = nn.L1Loss()
 L2loss = nn.MSELoss()
 CEloss = nn.CrossEntropyLoss()
 
-#Variable to progress/regress age
+# Variable to progress/regress age
 
-fixed_l = -torch.ones(80*10).view(80, 10).to(device)
+fixed_l = -torch.ones(80 * 10).view(80, 10).to(device)
 for index, value in enumerate(fixed_l):
-    value[index//8] = 1
+    value[index // 8] = 1
 
 fixed_l_v = Variable(fixed_l)
 
-#Output directory
+# Output directory
 
 output_directory = './results'
 
 if os.path.exists(output_directory):
     os.mkdir(output_directory)
 
-#Number of epochs
+# Number of epochs
 
 epochs = 20
 
 for epoch in range(epochs):
     for index, data in enumerate(dataloader):
-        #Extracting data and converting labels to one hot encoded format
+        # Extracting data and converting labels to one hot encoded format
         image, (label, gender) = data
         label = Variable(label).view(-1, 1)
         gender = Variable(gender.float())
-        #Convert age to intervals
+        # Convert age to intervals
         label = torch.tensor([convert_age(age) for age in label])
-        #Convert age to one-hot
+        # Convert age to one-hot
         label = index_to_one_hot(label, num_classes)
         image = Variable(image.to(device))
         if epoch == 0 and index == 0:
@@ -137,10 +134,9 @@ for epoch in range(epochs):
                 pickle.dump(fixed_noise, file)
 
         # prior distribution z_star, real_label, fake_label
-        z_star = Variable(torch.FloatTensor(batch_size * nz).uniform_(-1, 1)).view(batch_size, nz)
+        z_star = Variable(torch.FloatTensor(batch_size * n_z).uniform_(-1, 1)).view(batch_size, n_z)
         real_label = Variable(torch.ones(batch_size).fill_(1)).view(-1, 1)
         fake_label = Variable(torch.ones(batch_size).fill_(0)).view(-1, 1)
-
 
         ## train Encoder and Generator with reconstruction loss
         netE.zero_grad()
@@ -154,7 +150,7 @@ for epoch in range(epochs):
         # EG_loss 2. GAN loss - image
         z = netE(image)
         reconst = netG(z, label, gender)
-        D_reconst, _ = netDimg(reconst, label.view(batch_size, nl, 1, 1), gender.view(batch_size, 1, 1, 1))
+        D_reconst, _ = netDimg(reconst, label.view(batch_size, n_l, 1, 1), gender.view(batch_size, 1, 1, 1))
         G_img_loss = BCEloss(D_reconst, real_label)
 
         ## EG_loss 3. GAN loss - z
@@ -183,8 +179,8 @@ for epoch in range(epochs):
 
         ## train D_img with real images
         netDimg.zero_grad()
-        D_img, D_clf = netDimg(image, label.view(batch_size, nl, 1, 1), gender.view(batch_size, 1, 1, 1))
-        D_reconst, _ = netDimg(reconst.detach(), label.view(batch_size, nl, 1, 1), gender.view(batch_size, 1, 1, 1))
+        D_img, D_clf = netDimg(image, label.view(batch_size, n_l, 1, 1), gender.view(batch_size, 1, 1, 1))
+        D_reconst, _ = netDimg(reconst.detach(), label.view(batch_size, n_l, 1, 1), gender.view(batch_size, 1, 1, 1))
 
         D_loss = BCEloss(D_img, real_label) + BCEloss(D_reconst, fake_label)
         D_loss.backward()
