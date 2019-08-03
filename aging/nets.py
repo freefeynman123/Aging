@@ -143,7 +143,7 @@ class Dimg(nn.Module):
         self.batch1 = nn.BatchNorm2d(self.channels)
         self.conv1t = nn.ConvTranspose2d(self.labels*self.n_age + self.n_gender, self.labels*self.n_age + self.n_gender,
                                          kernel_size=64, stride=1, padding=0)
-        self.conv2 = nn.ConvTranspose2d(self.labels*self.n_age + self.n_gender + self.channels, 2*self.channels,
+        self.conv2 = nn.Conv2d(self.labels*self.n_age + self.n_gender + self.channels, 2*self.channels,
                                         kernel_size=4, stride=2, padding=1)
         self.batch2 = nn.BatchNorm2d(2*self.channels)
         self.conv3 = nn.Conv2d(2*self.channels, 4*self.channels, kernel_size=4, stride=2, padding=1)

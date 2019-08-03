@@ -88,7 +88,7 @@ optimizerDz = torch.optim.Adam(netDz.parameters(), betas=betas, lr=lr)
 optimizerDimg = torch.optim.Adam(netDimg.parameters(), betas=betas, lr=lr)
 
 # Definition of losses
-BCEloss = nn.BCELoss
+BCEloss = nn.BCELoss()
 L1loss = nn.L1Loss()
 L2loss = nn.MSELoss()
 CEloss = nn.CrossEntropyLoss()
@@ -105,7 +105,7 @@ fixed_l_v = Variable(fixed_l)
 
 output_directory = './results'
 
-if os.path.exists(output_directory):
+if not os.path.exists(output_directory):
     os.mkdir(output_directory)
 
 # Number of epochs
@@ -185,3 +185,12 @@ for epoch in range(epochs):
         D_loss = BCEloss(D_img, real_label) + BCEloss(D_reconst, fake_label)
         D_loss.backward()
         optimizerDimg.step()
+
+        if epoch % 10 == 0:
+            print("The current losses are: ", f"EG_L1_loss: {EG_L1_loss}", f"G_img_loss: {G_img_loss}",
+                  f"Ez_loss: {Ez_loss}", f"G_tv_loss: {G_tv_loss}", f"EG_loss: {EG_loss}", sep='\n')
+            torch.save(netE.state_dict(), os.path.join(output_directory, f"netE_{epoch}.pickle"))
+            torch.save(netG.state_dict(), os.path.join(output_directory, f"netE_{epoch}.pickle"))
+            torch.save(netDz.state_dict(), os.path.join(output_directory, f"netE_{epoch}.pickle"))
+            torch.save(netDimg.state_dict(), os.path.join(output_directory, f"netE_{epoch}.pickle"))
+

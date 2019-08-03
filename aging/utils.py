@@ -37,21 +37,8 @@ def index_to_one_hot(label: int, N: int):
     return one_hot
 
 
-def dialation_holes(hole_mask, device='cpu'):
-    b, ch, h, w = hole_mask.shape
-    dilation_conv = nn.Conv2d(ch, ch, 3, padding=1, bias=False).to(device)
-    torch.nn.init.constant_(dilation_conv.weight, 1.0)
-    with torch.no_grad():
-        output_mask = dilation_conv(hole_mask)
-    updated_holes = output_mask != 0
-    return updated_holes.float()
-
-
-def total_variation_loss(image, mask, device='cpu'):
-    hole_mask = 1 - mask
-    dilated_holes = dialation_holes(hole_mask, device)
-    colomns_in_Pset = dilated_holes[:, :, :, 1:] * dilated_holes[:, :, :, :-1]
-    rows_in_Pset = dilated_holes[:, :, 1:, :] * dilated_holes[:, :, :-1:, :]
-    loss = torch.sum(torch.abs(colomns_in_Pset * (image[:, :, :, 1:] - image[:, :, :, :-1]))) + \
-           torch.sum(torch.abs(rows_in_Pset * (image[:, :, :1:] - image[:, :, -1:, :])))
+def total_variation_loss(image):
+    rows = (image[:, :, :, 1:] - image[:, :, :, :-1])**2
+    columns = (image[:, :, 1:, :] - image[:, :, :-1:, :])**2
+    loss = (rows.mean(dim=3) + columns.mean(dim=2)).mean()
     return loss
