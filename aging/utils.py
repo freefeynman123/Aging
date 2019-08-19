@@ -1,10 +1,34 @@
-import numpy as np
+import os
+import shutil
 from typing import List
+
+import numpy as np
 import torch
-from torch import nn
+
+ORIGIN_DIR = 'data/UTKFace'
+DESTINATION_DIR = 'data/renamed'
 
 
-def convert_age(age: int, interval: List[int] = list(np.linspace(10, 120, 10))):
+def rename_files():
+    if not os.path.exists(DESTINATION_DIR):
+        os.makedirs(DESTINATION_DIR)
+    else:
+        x = input("Do you want to rewrite the folder? Y/N").lower()
+        if x == 'y':
+            shutil.rmtree(DESTINATION_DIR, ignore_errors=True)
+            os.makedirs(DESTINATION_DIR)
+        elif x == 'n':
+            print("You chose not to delete the folder")
+        else:
+            print("Please give Y/N response")
+    for index, file in enumerate(os.listdir(ORIGIN_DIR)):
+        # retrieving age and gender from file names
+        age, gender = file.split('_')
+        destination_name = '.'.join(['_'.join([str(age), str(gender), str(index)]), 'jpg'])
+        os.rename(os.path.join(ORIGIN_DIR, file), os.path.join(DESTINATION_DIR, destination_name))
+
+
+def convert_age(age: int, interval: List[int] = list(np.linspace(10, 120, 10))) -> int:
     """
     Converts age to label based on given interval.
 
@@ -31,14 +55,18 @@ def index_to_one_hot(label: int, N: int):
     try:
         one_hot = zeros.scatter_(1, label, 1)
     except RuntimeError:
-        print("Your label tensor is probably one dimensional, trying to reshape it.")
         label = label.view(-1, 1)
         one_hot = zeros.scatter_(1, label, 1)
     return one_hot
 
 
-def total_variation_loss(image):
-    rows = (image[:, :, :, 1:] - image[:, :, :, :-1])**2
-    columns = (image[:, :, 1:, :] - image[:, :, :-1:, :])**2
+def total_variation_loss(image: np.ndarray) -> float:
+    """
+    Calculates total variation loss which allows loss function to account for noise reduction in generated images.
+    :param image: Input image to calculate loss from
+    :return: Value of a loss
+    """
+    rows = (image[:, :, :, 1:] - image[:, :, :, :-1]) ** 2
+    columns = (image[:, :, 1:, :] - image[:, :, :-1:, :]) ** 2
     loss = (rows.mean(dim=3) + columns.mean(dim=2)).mean()
     return loss

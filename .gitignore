@@ -4,6 +4,8 @@
 data/
 *.pickle
 results/
+inference.ipynb
+tests/log.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

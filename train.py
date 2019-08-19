@@ -1,18 +1,16 @@
 import os
-import re
-import matplotlib.pyplot as plt
-import numpy as np
 import pickle
+import re
+
 import torch
+import torchvision.transforms as transforms
 from torch import nn
 from torch.autograd import Variable
-import torchvision.datasets as dset
-import torchvision.transforms as transforms
-import torchvision.utils as vutils
+
 from aging.dataloader import ImageTargetFolder
 from aging.nets import Encoder, Generator, Dimg, Dz
-from aging.utils import convert_age, index_to_one_hot, total_variation_loss
 from aging.parameters import n_l, n_z, image_size, batch_size
+from aging.utils import convert_age, index_to_one_hot, total_variation_loss
 
 # Setting environmental variable to resolve error:
 # OMP: Error #15: Initializing libiomp5.dylib, but found libomp.dylib already initialized.
@@ -21,8 +19,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 # Dataset
 
 DESTINATION_DIR = 'data'
-image_size = 128
-ngpu = 0
+ngpu = 1
 num_epochs = 10
 num_classes = 10
 lr = 2e-4
@@ -110,7 +107,7 @@ if not os.path.exists(output_directory):
 
 # Number of epochs
 
-epochs = 20
+epochs = 50
 
 for epoch in range(epochs):
     for index, data in enumerate(dataloader):
@@ -123,6 +120,8 @@ for epoch in range(epochs):
         # Convert age to one-hot
         label = index_to_one_hot(label, num_classes)
         image = Variable(image.to(device))
+        label = label.to(device)
+        gender = gender.to(device)
         if epoch == 0 and index == 0:
             fixed_noise = image[:8].repeat(10, 1, 1, 1)
             fixed_g = gender[:8].view(-1, 1).repeat(10, 1)
@@ -134,9 +133,9 @@ for epoch in range(epochs):
                 pickle.dump(fixed_noise, file)
 
         # prior distribution z_star, real_label, fake_label
-        z_star = Variable(torch.FloatTensor(batch_size * n_z).uniform_(-1, 1)).view(batch_size, n_z)
-        real_label = Variable(torch.ones(batch_size).fill_(1)).view(-1, 1)
-        fake_label = Variable(torch.ones(batch_size).fill_(0)).view(-1, 1)
+        z_star = Variable(torch.FloatTensor(batch_size * n_z).uniform_(-1, 1).to(device)).view(batch_size, n_z)
+        real_label = Variable(torch.ones(batch_size).fill_(1).to(device)).view(-1, 1)
+        fake_label = Variable(torch.ones(batch_size).fill_(0).to(device)).view(-1, 1)
 
         ## train Encoder and Generator with reconstruction loss
         netE.zero_grad()
@@ -186,11 +185,10 @@ for epoch in range(epochs):
         D_loss.backward()
         optimizerDimg.step()
 
-        if epoch % 10 == 0:
-            print("The current losses are: ", f"EG_L1_loss: {EG_L1_loss}", f"G_img_loss: {G_img_loss}",
-                  f"Ez_loss: {Ez_loss}", f"G_tv_loss: {G_tv_loss}", f"EG_loss: {EG_loss}", sep='\n')
-            torch.save(netE.state_dict(), os.path.join(output_directory, f"netE_{epoch}.pickle"))
-            torch.save(netG.state_dict(), os.path.join(output_directory, f"netE_{epoch}.pickle"))
-            torch.save(netDz.state_dict(), os.path.join(output_directory, f"netE_{epoch}.pickle"))
-            torch.save(netDimg.state_dict(), os.path.join(output_directory, f"netE_{epoch}.pickle"))
-
+    if epoch % 10 == 0:
+        print("The current losses are: ", f"EG_L1_loss: {EG_L1_loss}", f"G_img_loss: {G_img_loss}",
+              f"Ez_loss: {Ez_loss}", f"G_tv_loss: {G_tv_loss}", f"EG_loss: {EG_loss}", sep='\n')
+        torch.save(netE.state_dict(), os.path.join(output_directory, f"netE_{epoch}.pickle"))
+        torch.save(netG.state_dict(), os.path.join(output_directory, f"netG_{epoch}.pickle"))
+        torch.save(netDz.state_dict(), os.path.join(output_directory, f"netDz_{epoch}.pickle"))
+        torch.save(netDimg.state_dict(), os.path.join(output_directory, f"netDimg_{epoch}.pickle"))
