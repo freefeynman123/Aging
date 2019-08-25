@@ -6,6 +6,7 @@ data/
 results/
 inference.ipynb
 tests/log.txt
+client_secrets.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
