@@ -1,1 +1,1 @@
-In order to train the architecture you should upload Aging.ipynb
+In order to train the architecture you should upload Aging.ipynb to Google Colab a

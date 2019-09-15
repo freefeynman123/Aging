@@ -23,10 +23,18 @@ def rename_files():
             print("Please give Y/N response")
     for index, file in enumerate(os.listdir(ORIGIN_DIR)):
         # retrieving age and gender from file names
-        age, gender = file.split('_')
+        try:
+            age, gender, _, _ = file.split('_')
+        except ValueError:
+            age, gender, _ = file.split('_')
         destination_name = '.'.join(['_'.join([str(age), str(gender), str(index)]), 'jpg'])
         os.rename(os.path.join(ORIGIN_DIR, file), os.path.join(DESTINATION_DIR, destination_name))
 
+losses = {'EG_L1_loss_full': EG_L1_loss_full,
+'D_img_loss_full': D_img_loss_full,
+'Ez_loss_full': Ez_loss_full,
+'G_tv_loss_full': G_tv_loss_full,
+'EG_loss_full': EG_loss_full }
 
 def convert_age(age: int, interval: List[int] = list(np.linspace(10, 120, 10))) -> int:
     """
