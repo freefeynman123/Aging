@@ -4,11 +4,9 @@ from torchvision.datasets import ImageFolder
 class ImageTargetFolder(ImageFolder):
     def __getitem__(self, index):
         """
-        Args:
-            index (int): Index
-
-        Returns:
-            tuple: (sample, target) where target is targets value of given example.
+        Edited version of ImageFolder class to allow reading custom labels instead of being based on folders.
+        :param index: Index.
+        :return: (sample, target) where target is targets value of given example.
         """
         path, target = self.samples[index]
         sample = self.loader(path)

@@ -2,6 +2,12 @@
 .idea/
 *.tar.gz
 data/
+*.pickle
+results/
+inference.ipynb
+tests/log.txt
+client_secrets.json
+mycreds.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
