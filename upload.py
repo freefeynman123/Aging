@@ -26,9 +26,7 @@ def listdir_nohidden(path):
               help='Name of the file containing credentials needed to authorize the app.')
 @click.option('--notebook_training', default='Aging.ipynb',
               help='Name of the notebook with model training.')
-@click.option('--notebook_inference', default='Inference.ipynb',
-              help='Name of the notebook with model inference.')
-def upload(clients_secrets_path, files_folder, creds_file, notebook_training, notebook_inference):
+def upload(clients_secrets_path, files_folder, creds_file, notebook_training):
     # Login to Google Drive and create drive object
     try:
         GoogleAuth.DEFAULT_SETTINGS["client_config_file"] = str(clients_secrets_path)
@@ -61,19 +59,16 @@ def upload(clients_secrets_path, files_folder, creds_file, notebook_training, no
     folder.Upload()
     folderid = folder['id']
     for file in listdir_nohidden(files_folder):
-        print(file)
         with open(file, "r") as f:
             fn = os.path.basename(f.name)
             file_drive = drive.CreateFile({'title': fn, "parents": [{"kind": "drive#fileLink", "id": folderid}]})
             file_drive.SetContentString(f.read())
             file_drive.Upload()
-        print("The file: " + fn + " has been uploaded")
-    # file_train = drive.CreateFile({'title': notebook_training})
-    # file_train.SetContentFile(notebook_training)
-    # file_train.Upload()
-    # file_inference = drive.CreateFile({'title': notebook_inference})
-    # file_inference.SetContentFile(notebook_inference)
-    # file_inference.Upload()
+        print(f"The file: {fn} has been uploaded")
+    file_train = drive.CreateFile({'title': notebook_training})
+    file_train.SetContentFile(notebook_training)
+    file_train.Upload()
+    print(f"The file: {notebook_training} has been uploaded")
 
 
 if __name__ == '__main__':
