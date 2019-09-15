@@ -5,6 +5,6 @@ terminal options run:
 python upload.py --help
 ```
 
-Where to download UTKFace dataset:
+Link to download UTKFace dataset:
 
 https://drive.google.com/drive/folders/0BxYys69jI14kU0I1YUQyY1ZDRUE

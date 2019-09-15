@@ -8,6 +8,7 @@ inference.ipynb
 tests/log.txt
 client_secrets.json
 mycreds.txt
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
